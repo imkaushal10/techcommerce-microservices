@@ -1,0 +1,5 @@
+Flask==2.3.2
+Flask-CORS==4.0.0
+prometheus-flask-exporter==0.22.3
+pytest==7.4.0
+pytest-cov==4.1.0

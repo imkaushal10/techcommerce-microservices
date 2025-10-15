@@ -1,13 +1,23 @@
+# Node
 node_modules/
-__pycache__/
-*.pyc
-.env
-.DS_Store
-*.log
 dist/
 build/
+coverage/
+npm-debug.log*
+package-lock.json.orig
+
+# Python
+__pycache__/
+*.pyc
 .venv/
 venv/
-*.swp
+
+# Env & logs
+.env
+*.log
+
+# Editors
 .idea/
 .vscode/
+.DS_Store
+*.swp

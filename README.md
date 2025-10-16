@@ -1,367 +1,354 @@
+![Docker](https://img.shields.io/badge/Docker-Ready-blue) ![Kubernetes](https://img.shields.io/badge/Kubernetes-Orchestrated-brightgreen) ![CI/CD](https://img.shields.io/badge/GitHub%20Actions-Automated-blueviolet) ![Monitoring](https://img.shields.io/badge/Monitoring-Prometheus%20%26%20Grafana-orange)
+
 # TechCommerce Microservices Platform
 
-DevOps Assignment: Production-ready e-commerce microservices with complete CI/CD, Kubernetes orchestration, auto-scaling, and monitoring.
+**DevOps Assignment:** Production-ready e-commerce microservices with CI/CD, Kubernetes orchestration, auto-scaling, and monitoring
+**Student Name:** Kaushal Bhattarai
+**Course:** COMP 488
 
-Student Name: [Your Name]
-Course: DevOps Engineering
-Date: October 16, 2025
+---
 
-📋 Table of Contents
+## 📋 Table of Contents
 
-Architecture Overview
-Features
-Technology Stack
-Quick Start Guide
-Design Decisions
-Security Approach
-Troubleshooting Guide
-CI/CD Pipeline
-Monitoring & Alerting
-Project Structure
+* [Architecture Overview](#architecture-overview)
+* [Features](#features)
+* [Technology Stack](#technology-stack)
+* [Quick Start Guide](#quick-start-guide)
+* [Design Decisions](#design-decisions)
+* [Security Approach](#security-approach)
+* [Troubleshooting Guide](#troubleshooting-guide)
+* [CI/CD Pipeline](#cicd-pipeline)
+* [Monitoring & Alerting](#monitoring--alerting)
+* [Project Structure](#project-structure)
+* [Reflection & Future Improvements](#reflection--future-improvements)
 
-🏗️ Architecture Overview
-System Architecture Diagram
-┌──────────────────────────────────────────────────────────────────┐
-│                          External Users                           │
-└────────────────────────────┬─────────────────────────────────────┘
-                             │
-                             ▼
-                    ┌─────────────────┐
-                    │  Load Balancer  │
-                    │   (NodePort)    │
-                    │   Port: 30000   │
-                    └────────┬────────┘
-                             │
-                             ▼
-              ┌──────────────────────────────┐
-              │    Frontend Service          │
-              │    Node.js 18 + Express      │
-              │    Port: 3000                │
-              │    Replicas: 2               │
-              │    Health Checks: ✓          │
-              └──────┬────────────┬──────────┘
-                     │            │
-         ┌───────────┘            └───────────┐
-         ▼                                    ▼
-┌──────────────────────┐          ┌──────────────────────┐
-│   Product API        │          │    Order API         │
-│   Python 3.11/Flask  │          │   Python 3.11/Flask  │
-│   Port: 5000         │          │   Port: 5000         │
-│   Min Replicas: 2    │          │   Replicas: 2        │
-│   Max Replicas: 10   │          │   Static Scaling     │
-│   Auto-Scale: CPU70% │          │   Health Checks: ✓   │
-└──────────────────────┘          └──────────────────────┘
-         │                                    │
-         └──────────┬─────────────────────────┘
-                    ▼
-         ┌─────────────────────┐
-         │   ConfigMaps &      │
-         │   Secrets           │
-         │   Environment Vars  │
-         └─────────────────────┘
-                    │
-                    ▼
-         ┌─────────────────────────────┐
-         │   Monitoring Stack          │
-         │   • Prometheus (Port 9090)  │
-         │   • Grafana (Port 3000)     │
-         │   • 10+ Alert Rules         │
-         └─────────────────────────────┘
-Component Details
-ServiceLanguage/FrameworkPortReplicasAuto-ScaleCPU RequestMemory RequestFrontendNode.js 18 + Express30002No100m128MiProduct APIPython 3.11 + Flask50002-10Yes (70% CPU)100m128MiOrder APIPython 3.11 + Flask50002No100m128MiPrometheusPrometheus 2.4590901No500m512MiGrafanaGrafana 10.030001No250m256Mi
-CI/CD Pipeline Flow
-┌──────────┐
-│   Git    │
-│   Push   │
-│ to main  │
-└────┬─────┘
-     │
-     ▼
-┌─────────────────────┐
-│   1. Test Stage     │
-│   • Frontend (Jest) │
-│   • APIs (Pytest)   │
-│   • Code Coverage   │
-└──────┬──────────────┘
-       │
-       ▼
-┌──────────────────────────┐
-│   2. Security Scan       │
-│   • Trivy (SAST)        │
-│   • npm audit           │
-│   • Safety (Python)     │
-└──────┬───────────────────┘
-       │
-       ▼
-┌───────────────────────────────┐
-│   3. Build & Push Images      │
-│   • Multi-stage Docker build  │
-│   • Tag with SHA & latest     │
-│   • Push to Docker Hub        │
-│   • Scan images with Trivy    │
-└──────┬────────────────────────┘
-       │
-       ▼
-┌────────────────────────┐
-│   4. Deploy Staging    │
-│   • Automatic deploy   │
-│   • Run smoke tests    │
-│   • Verify health      │
-└──────┬─────────────────┘
-       │
-       ▼
-┌───────────────────────┐
-│  5. Manual Approval   │
-│  ⏸️  Await approval   │
-└──────┬────────────────┘
-       │
-       ▼
+<details>
+<summary><strong>🏗️ Architecture Overview</strong></summary>
+
+### System Architecture
+
+```
+External Users
+      │
+      ▼
+┌─────────────────┐
+│  Load Balancer  │ (NodePort: 30000)
+└────────┬────────┘
+         ▼
 ┌──────────────────────────────┐
-│   6. Deploy Production       │
-│   • Manual gate required     │
-│   • Backup current state     │
-│   • Rolling update           │
-│   • Post-deploy verification │
-│   • Auto-rollback on fail    │
-└──────────────────────────────┘
+│      Frontend Service        │
+│  Node.js 18 + Express        │
+│  Port: 3000                  │
+│  Replicas: 2                 │
+│  Health Checks: ✓            │
+└──────┬────────────┬──────────┘
+       │            │
+       ▼            ▼
+┌──────────────┐  ┌──────────────┐
+│ Product API  │  │ Order API    │
+│ Python 3.11  │  │ Python 3.11 │
+│ Port: 5000   │  │ Port: 5000  │
+│ Min 2, Max 10│  │ Replicas 2  │
+│ AutoScale:70%│  │ Health ✓    │
+└──────┬───────┘  └─────────────┘
+       ▼
+┌─────────────────────┐
+│ ConfigMaps & Secrets│
+│ Environment Vars    │
+└─────────────────────┘
+       ▼
+┌─────────────────────────────┐
+│ Monitoring Stack             │
+│ • Prometheus (9090)          │
+│ • Grafana (3000)             │
+│ • 10+ Alert Rules            │
+└─────────────────────────────┘
+```
 
-✨ Features
-Core Functionality
+### Component Details
 
-✅ Microservices Architecture: 3 independent services (Frontend, Product API, Order API)
-✅ Docker Containerization: Multi-stage builds for optimized images
-✅ Kubernetes Orchestration: Complete K8s manifests with best practices
-✅ Horizontal Pod Autoscaling: CPU-based auto-scaling (70% threshold)
-✅ Health Checks: Liveness and readiness probes for all services
-✅ Resource Management: CPU/Memory requests and limits
+| Service     | Language/Framework   | Port | Replicas | Auto-Scale    | CPU Request | Memory Request |
+| ----------- | -------------------- | ---- | -------- | ------------- | ----------- | -------------- |
+| Frontend    | Node.js 18 + Express | 3000 | 2        | No            | 100m        | 128Mi          |
+| Product API | Python 3.11 + Flask  | 5000 | 2-10     | Yes (CPU 70%) | 100m        | 128Mi          |
+| Order API   | Python 3.11 + Flask  | 5000 | 2        | No            | 100m        | 128Mi          |
+| Prometheus  | Prometheus 2.45      | 9090 | 1        | No            | 500m        | 512Mi          |
+| Grafana     | Grafana 10.0         | 3000 | 1        | No            | 250m        | 256Mi          |
 
-DevOps Features
+</details>
 
-✅ CI/CD Pipeline: GitHub Actions with 6 automated stages
-✅ Security Scanning: Trivy, npm audit, Safety checks
-✅ Environment Management: Staging and Production with Kustomize
-✅ Monitoring: Prometheus metrics + Grafana dashboards
-✅ Alerting: 10+ alert rules for proactive monitoring
-✅ Rollback Capability: Automatic rollback on deployment failures
+<details>
+<summary><strong>✨ Features</strong></summary>
 
-Security Features
+### Core Functionality
 
-✅ Non-root Containers: All services run as non-root user (UID 1001)
-✅ Secret Management: Kubernetes Secrets for sensitive data
-✅ Image Scanning: Vulnerability scanning in CI/CD
-✅ Network Policies: Service-to-service communication control
-✅ RBAC: Role-based access control for Kubernetes resources
+* ✅ Microservices Architecture: Frontend, Product API, Order API
+* ✅ Docker Containerization: Multi-stage builds
+* ✅ Kubernetes Orchestration: Replicas and HPA
+* ✅ Horizontal Pod Autoscaling (CPU 70%)
+* ✅ Health Checks: Liveness and readiness probes
+* ✅ Resource Management: CPU & Memory requests/limits
 
-🛠️ Technology Stack
-Application Layer
+### DevOps Features
 
-Frontend: Node.js 18, Express.js, Axios, Prometheus Client
-Backend APIs: Python 3.11, Flask, Flask-CORS
-Metrics: prometheus-flask-exporter, prom-client
+* ✅ CI/CD Pipeline: GitHub Actions with automated stages
+* ✅ Security Scanning: Trivy, npm audit, Safety
+* ✅ Environment Management: Staging & Production via Kustomize
+* ✅ Monitoring: Prometheus + Grafana dashboards
+* ✅ Alerting: 10+ alert rules
+* ✅ Rollback Capability on deployment failure
 
-Infrastructure Layer
+### Security Features
 
-Containerization: Docker 20.10+, Multi-stage builds
-Orchestration: Kubernetes 1.27+, Minikube
-Configuration: Kustomize (built into kubectl)
+* ✅ Non-root Containers (UID 1001)
+* ✅ Kubernetes Secrets for sensitive data
+* ✅ Image Scanning in CI/CD
+* ✅ Network Policies for service communication
+* ✅ Kubernetes RBAC
 
-CI/CD
+</details>
 
-Version Control: Git, GitHub
-CI/CD Platform: GitHub Actions
-Container Registry: Docker Hub
-Security Scanning: Trivy, npm audit, Safety
+<details>
+<summary><strong>🛠️ Technology Stack</strong></summary>
 
-Monitoring & Observability
+### Application Layer
 
-Metrics: Prometheus 2.45
-Visualization: Grafana 10.0
-Alerting: Prometheus AlertManager rules
+* **Frontend:** Node.js 18, Express.js, Axios, Prometheus Client
+* **Backend APIs:** Python 3.11, Flask, Flask-CORS, prometheus-flask-exporter
 
-🚀 Quick Start Guide
-Prerequisites
-Required Software:
-bash# Verify installations
-docker --version          # Need: 20.10+
-kubectl version --client  # Need: 1.27+
-minikube version         # Need: 1.30+
-git --version            # Need: 2.30+
-node --version           # Need: 18+
-python --version         # Need: 3.11+
-Installation Links:
+### Infrastructure Layer
 
-Docker Desktop: https://www.docker.com/products/docker-desktop
-kubectl: https://kubernetes.io/docs/tasks/tools/
-Minikube: https://minikube.sigs.k8s.io/docs/start/
-Node.js: https://nodejs.org/
-Python: https://www.python.org/downloads/
+* **Containerization:** Docker 20.10+, Multi-stage builds
+* **Orchestration:** Kubernetes 1.27+, Minikube
+* **Configuration:** Kustomize
 
-Accounts Needed:
+### CI/CD
 
-GitHub account: https://github.com/signup
-Docker Hub account: https://hub.docker.com/signup
+* **Version Control:** Git, GitHub
+* **CI/CD Platform:** GitHub Actions
+* **Container Registry:** Docker Hub
+* **Security Scanning:** Trivy, npm audit, Safety
 
-Installation Steps:
+### Monitoring & Observability
 
-Step 1: Clone Repository
-bashgit clone https://github.com/YOUR_USERNAME/techcommerce-microservices.git
+* **Metrics:** Prometheus 2.45
+* **Visualization:** Grafana 10.0
+* **Alerting:** Prometheus AlertManager
+
+</details>
+
+<details>
+<summary><strong>🚀 Quick Start Guide</strong></summary>
+
+### Prerequisites
+
+```bash
+docker --version          # 20.10+
+kubectl version --client  # 1.27+
+minikube version          # 1.30+
+git --version             # 2.30+
+node --version            # 18+
+python --version          # 3.11+
+```
+
+**Accounts Needed:**
+
+* GitHub: [Sign Up](https://github.com/signup)
+* Docker Hub: [Sign Up](https://hub.docker.com/signup)
+
+### Installation Steps
+
+1. **Clone Repository**
+
+```bash
+git clone https://github.com/YOUR_USERNAME/techcommerce-microservices.git
 cd techcommerce-microservices
-Step 2: Start Kubernetes Cluster (2 minutes)
-bash# Start minikube with sufficient resources
+```
+
+2. **Start Kubernetes Cluster**
+
+```bash
 minikube start --cpus=4 --memory=8192
-
-# Enable required addons
-
 minikube addons enable metrics-server
 minikube addons enable ingress
-
-# Verify cluster is running
-
 kubectl get nodes
+```
 
-# Should show: STATUS = Ready
+3. **Build Docker Images**
 
-Step 3: Build Docker Images
-bash# Use minikube's Docker daemon (important!)
+```bash
 eval $(minikube docker-env)
-
-# Build all three services
-
 docker build -t techcommerce-frontend:latest ./frontend
 docker build -t techcommerce-product-api:latest ./product-api
 docker build -t techcommerce-order-api:latest ./order-api
-
-# Verify images are built
-
 docker images | grep techcommerce
-Step 4: Deploy to Kubernetes
-bash# Create namespace and deploy all resources
-kubectl apply -f k8s/base/namespace.yaml
-kubectl apply -f k8s/base/configmap.yaml
-kubectl apply -f k8s/base/secret.yaml
-kubectl apply -f k8s/base/frontend-deployment.yaml
-kubectl apply -f k8s/base/frontend-service.yaml
-kubectl apply -f k8s/base/product-api-deployment.yaml
-kubectl apply -f k8s/base/product-api-service.yaml
-kubectl apply -f k8s/base/product-api-hpa.yaml
-kubectl apply -f k8s/base/order-api-deployment.yaml
-kubectl apply -f k8s/base/order-api-service.yaml
+```
 
-# Watch pods start up (Ctrl+C to exit)
+4. **Deploy to Kubernetes**
 
+```bash
+kubectl apply -f k8s/base/
 kubectl get pods -n techcommerce -w
+```
 
-# Wait until all pods show STATUS = Running and READY = 1/1 or 2/2
+5. **Verify Deployment**
 
-Step 5: Verify Deployment (2 minutes)
-bash# Check all resources
+```bash
 kubectl get all -n techcommerce
-
-# Expected output
-
-# - 6 pods running (2 frontend, 2 product-api, 2 order-api)
-
-# - 3 services
-
-# - 3 deployments
-
-# - 1 HPA
-
-# Test health endpoints
-
 kubectl run test --rm -i --restart=Never \
   --image=curlimages/curl -n techcommerce -- \
   curl -s http://frontend-service:3000/health
+```
 
-# Should return: {"status":"healthy","service":"frontend"}
+6. **Access Services**
 
-Step 6: Access Services (1 minute)
-bash# Get the frontend URL
+```bash
 minikube service frontend-service -n techcommerce --url
-
-# Or get the direct URL
-
 echo "Frontend: http://$(minikube ip):30000"
+```
 
-# Test in browser or curl
+7. **Deploy Monitoring Stack**
 
-curl http://$(minikube ip):30000
-curl http://$(minikube ip):30000/health
-curl http://$(minikube ip):30000/products
-Step 7: Deploy Monitoring Stack (3 minutes)
-bash# Create monitoring namespace
+```bash
 kubectl create namespace monitoring
-
-# Deploy Prometheus
-
-kubectl apply -f monitoring/prometheus/prometheus-config.yaml
-kubectl apply -f monitoring/prometheus/alert-rules.yaml
-kubectl apply -f monitoring/prometheus/prometheus-deployment.yaml
-
-# Deploy Grafana
-
-kubectl apply -f monitoring/grafana/grafana-deployment.yaml
-
-# Wait for pods to be ready
-
+kubectl apply -f monitoring/prometheus/
+kubectl apply -f monitoring/grafana/
 kubectl get pods -n monitoring -w
+```
 
-# Get access URLs
+8. **Import Grafana Dashboard**
 
-echo "Prometheus: http://$(minikube ip):30090"
-echo "Grafana: http://$(minikube ip):30030"
+* Open Grafana: `http://$(minikube ip):30030`
+* Username: `admin`, Password: `admin123`
+* Import Dashboard ID: `315`
 
-# Grafana credentials
+</details>
 
-# Username: admin
+<details>
+<summary><strong>🧩 Design Decisions</strong></summary>
 
-# Password: admin123
+* **Microservices Architecture**
+  Independent scalability & fault isolation
+* **Kubernetes**
+  Self-healing, auto-scaling, declarative deployments
+* **Kustomize**
+  Environment-specific overlays
+* **GitHub Actions CI/CD**
+  Automated testing, scanning, building, deployment
+* **Monitoring**
+  Prometheus + Grafana for metrics & alerts
+* **Docker**
+  Multi-stage builds for efficiency & security
 
-Step 8: Import Grafana Dashboard (2 minutes)
-bash# Open Grafana in browser
-open http://$(minikube ip):30030  # Mac
+</details>
 
-# OR
+<details>
+<summary><strong>🔒 Security Approach</strong></summary>
 
-start http://$(minikube ip):30030  # Windows
+* **Secret Management**  
+  Kubernetes Secrets, no hard-coded credentials
+* **RBAC**  
+  Minimum permissions for services & CI/CD pipelines
+* **Non-Root Containers**  
+  UID 1001, least privilege principle
+* **Image Scanning**  
+  Trivy in CI/CD pipeline
+* **Network Policies**  
+  Explicit allowed service communication
+* **Supply Chain Security**  
+  Signed commits and scoped tokens
 
-# Login with admin/admin123
+</details>
 
-# Go to: Dashboards → Import
+<details>
+<summary><strong>🧰 Troubleshooting Guide</strong></summary>
 
-# Enter Dashboard ID: 315
+| Issue                             | Symptom                                            | Fix                                                                     |
+| --------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------- |
+| Kubernetes Cluster Not Connecting | `dial tcp [::1]:8080: connect: connection refused` | `kubectl config current-context` & restart Minikube                     |
+| Pods CrashLoopBackOff             | Pod fails repeatedly                               | `kubectl describe pod <pod> -n techcommerce` & `kubectl logs <pod>`     |
+| Deployment Rollout Timeout        | `kubectl rollout status --timeout=5m` fails        | Check events: `kubectl get events -n techcommerce` & rollback if needed |
+| Image Pull Failures               | ErrImagePull                                       | Ensure image exists & update Docker secrets                             |
+| Minikube Access Issues            | Service not reachable in browser                   | `minikube service list` & use correct URL                               |
 
-# Select Prometheus data source
+</details>
 
-# Click Import
+<details>
+<summary><strong>CI/CD Pipeline</strong></summary>
 
-Testing the Application
-bash# Test Frontend
-curl http://$(minikube ip):30000/
-curl http://$(minikube ip):30000/health
-curl http://$(minikube ip):30000/products
+```
+Git Push → Test → Security Scan → Build & Push → Deploy Staging → Manual Approval → Deploy Production
+```
 
-# Test from inside cluster
+**Pipeline Stages:**
 
-kubectl run -it --rm test --image=curlimages/curl \
-  --restart=Never -n techcommerce -- sh
+1. Test: Jest (Frontend), Pytest (APIs)
+2. Security Scan: Trivy, npm audit, Safety
+3. Build & Push Docker Images: Multi-stage, tag with SHA & latest
+4. Deploy Staging: Auto deploy + smoke tests
+5. Manual Approval: Production gate
+6. Deploy Production: Rolling update, backup, auto-rollback
 
-# Inside the pod
+</details>
 
-curl http://frontend-service:3000/health
-curl http://product-api-service:5000/api/products
-curl http://order-api-service:5000/api/orders
-exit
+<details>
+<summary><strong>📊 Monitoring & Alerting</strong></summary>
 
-# Test auto-scaling (generate load)
+* **Metrics**  
+  Prometheus (Port 9090)
+* **Visualization**  
+  Grafana (Port 3000)
+* **Alerting**  
+  10+ Prometheus alert rules
+* **Health Checks**  
+  Liveness & readiness probes
 
-kubectl run -it load-generator --rm --image=busybox \
-  --restart=Never -n techcommerce -- sh
+</details>
 
-# Inside the pod
+<details>
+<summary><strong>📂 Project Structure</strong></summary>
 
-while true; do wget -q -O- http://product-api-service:5000/api/products; done
+```bash
 
-# In another terminal, watch HPA scale up
+techcommerce-microservices/
+├── frontend/ # Frontend service (Node.js + Express)
+├── product-api/ # Product API service (Python + Flask)
+├── order-api/ # Order API service (Python + Flask)
+├── k8s/ # Kubernetes manifests
+│ ├── base/ # Base configs
+│ ├── staging/ # Staging overlays
+│ └── production/ # Production overlays
+├── monitoring/ # Monitoring stack
+│ ├── prometheus/ # Prometheus configs & alert rules
+│ └── grafana/ # Grafana dashboards
+└── .github/workflows/ # GitHub Actions CI/CD workflows
+```
 
-kubectl get hpa -n techcommerce -w
+</details>
+
+<details>
+<summary><strong>📚 Reflection & Future Improvements</strong></summary>
+
+### Reflection
+
+* Gained hands-on experience with production-grade microservices, CI/CD, Kubernetes, and monitoring.
+* Reinforced automation, scalability, observability, and security.
+
+### Challenges
+
+* Configuring `kubectl` contexts, Docker Hub authentication, Kustomize overlays, and monitoring setup in Minikube.
+
+### Future Improvements
+
+| Area            | Improvement                      | Benefit                                     |
+| --------------- | -------------------------------- | ------------------------------------------- |
+| CI/CD           | GitOps with ArgoCD/FluxCD        | Fully automated, declarative deployments    |
+| Security        | OPA Gatekeeper, image signing    | Policy enforcement & supply chain integrity |
+| Infrastructure  | Managed Kubernetes (EKS/GKE/AKS) | Real-world scalability & HA                 |
+| Testing         | Integration tests                | Validates inter-service communication       |
+| Monitoring      | AlertManager notifications       | Faster incident response                    |
+| CI Optimization | Self-hosted runners, caching     | Faster pipeline execution                   |
+
+### Final Thoughts
+
+This project demonstrates the complete DevOps lifecycle: from local development to automated CI/CD and Kubernetes orchestration. The TechCommerce platform is **scalable, resilient, and production-ready**, following real-world cloud-native architecture and DevOps best practices.

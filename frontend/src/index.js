@@ -77,9 +77,11 @@ app.get('/orders', async (req, res) => {
   }
 });
 
-// Start server
-const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Frontend service running on port ${PORT}`);
-});
+// Only start server if this file is run directly
+if (require.main === module) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Frontend service running on port ${PORT}`);
+  });
+}
 
 module.exports = app;

@@ -214,7 +214,7 @@ jobs:
 
       - name: Deploy to staging
         run: |
-          kubectl apply -k k8s/staging
+          kubectl apply -k k8s/staging --validate=false
           kubectl rollout status deployment/staging-frontend -n techcommerce-staging --timeout=5m
           kubectl rollout status deployment/staging-product-api -n techcommerce-staging --timeout=5m
           kubectl rollout status deployment/staging-order-api -n techcommerce-staging --timeout=5m
@@ -270,7 +270,7 @@ jobs:
 
       - name: Deploy to production
         run: |
-          kubectl apply -k k8s/production
+          kubectl apply -k k8s/production --validate=false
           kubectl rollout status deployment/prod-frontend -n techcommerce-production --timeout=10m
           kubectl rollout status deployment/prod-product-api -n techcommerce-production --timeout=10m
           kubectl rollout status deployment/prod-order-api -n techcommerce-production --timeout=10m

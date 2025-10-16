@@ -1,0 +1,291 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+
+jobs:
+  # Job 1: Run Tests
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Test Frontend
+        run: |
+          cd frontend
+          npm ci
+          npm test
+
+      - name: Test Product API
+        run: |
+          cd product-api
+          pip install -r requirements.txt
+          pytest tests/ -v --cov=src
+
+      - name: Test Order API
+        run: |
+          cd order-api
+          pip install -r requirements.txt
+          pytest tests/ -v --cov=src
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        if: always()
+
+  # Job 2: Security Scanning
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          format: "sarif"
+          output: "trivy-results.sarif"
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"
+
+      - name: Run npm audit (Frontend)
+        run: |
+          cd frontend
+          npm audit --audit-level=moderate
+        continue-on-error: true
+
+      - name: Run Safety check (Python)
+        run: |
+          pip install safety
+          cd product-api && safety check -r requirements.txt
+          cd ../order-api && safety check -r requirements.txt
+        continue-on-error: true
+
+  # Job 3: Build and Push Docker Images
+  build-and-push:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+    needs: [test, security-scan]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "branch=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+
+      - name: Build and push Frontend
+        uses: docker/build-push-action@v4
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/techcommerce-frontend:latest
+            ${{ secrets.DOCKER_USERNAME }}/techcommerce-frontend:${{ steps.meta.outputs.sha_short }}
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/techcommerce-frontend:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/techcommerce-frontend:buildcache,mode=max
+
+      - name: Build and push Product API
+        uses: docker/build-push-action@v4
+        with:
+          context: ./product-api
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/techcommerce-product-api:latest
+            ${{ secrets.DOCKER_USERNAME }}/techcommerce-product-api:${{ steps.meta.outputs.sha_short }}
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/techcommerce-product-api:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/techcommerce-product-api:buildcache,mode=max
+
+      - name: Build and push Order API
+        uses: docker/build-push-action@v4
+        with:
+          context: ./order-api
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/techcommerce-order-api:latest
+            ${{ secrets.DOCKER_USERNAME }}/techcommerce-order-api:${{ steps.meta.outputs.sha_short }}
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/techcommerce-order-api:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/techcommerce-order-api:buildcache,mode=max
+
+      - name: Scan Frontend image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ secrets.DOCKER_USERNAME }}/techcommerce-frontend:latest
+          format: "table"
+          exit-code: "0"
+          severity: "CRITICAL,HIGH"
+
+      - name: Scan Product API image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ secrets.DOCKER_USERNAME }}/techcommerce-product-api:latest
+          format: "table"
+          exit-code: "0"
+          severity: "CRITICAL,HIGH"
+
+      - name: Scan Order API image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ secrets.DOCKER_USERNAME }}/techcommerce-order-api:latest
+          format: "table"
+          exit-code: "0"
+          severity: "CRITICAL,HIGH"
+
+  # Job 4: Deploy to Staging
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: staging
+      url: http://staging.techcommerce.example.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > $HOME/.kube/config
+
+      - name: Update image tags
+        run: |
+          cd k8s/staging
+          kustomize edit set image \
+            techcommerce-frontend=${{ secrets.DOCKER_USERNAME }}/techcommerce-frontend:${{ github.sha }}
+          kustomize edit set image \
+            techcommerce-product-api=${{ secrets.DOCKER_USERNAME }}/techcommerce-product-api:${{ github.sha }}
+          kustomize edit set image \
+            techcommerce-order-api=${{ secrets.DOCKER_USERNAME }}/techcommerce-order-api:${{ github.sha }}
+
+      - name: Deploy to staging
+        run: |
+          kubectl apply -k k8s/staging
+          kubectl rollout status deployment/staging-frontend -n techcommerce-staging --timeout=5m
+          kubectl rollout status deployment/staging-product-api -n techcommerce-staging --timeout=5m
+          kubectl rollout status deployment/staging-order-api -n techcommerce-staging --timeout=5m
+
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests..."
+          # Add your smoke test commands here
+          kubectl run smoke-test --rm -i --restart=Never \
+            --image=curlimages/curl -n techcommerce-staging -- \
+            curl -f http://staging-frontend-service:3000/health
+
+      - name: Notify deployment
+        if: always()
+        run: |
+          echo "Staging deployment completed!"
+          echo "Status: ${{ job.status }}"
+
+  # Job 5: Deploy to Production (with manual approval)
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: http://techcommerce.example.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > $HOME/.kube/config
+
+      - name: Create backup
+        run: |
+          kubectl get all -n techcommerce-production -o yaml > backup-$(date +%Y%m%d-%H%M%S).yaml
+
+      - name: Update image tags
+        run: |
+          cd k8s/production
+          kustomize edit set image \
+            techcommerce-frontend=${{ secrets.DOCKER_USERNAME }}/techcommerce-frontend:${{ github.sha }}
+          kustomize edit set image \
+            techcommerce-product-api=${{ secrets.DOCKER_USERNAME }}/techcommerce-product-api:${{ github.sha }}
+          kustomize edit set image \
+            techcommerce-order-api=${{ secrets.DOCKER_USERNAME }}/techcommerce-order-api:${{ github.sha }}
+
+      - name: Deploy to production
+        run: |
+          kubectl apply -k k8s/production
+          kubectl rollout status deployment/prod-frontend -n techcommerce-production --timeout=10m
+          kubectl rollout status deployment/prod-product-api -n techcommerce-production --timeout=10m
+          kubectl rollout status deployment/prod-order-api -n techcommerce-production --timeout=10m
+
+      - name: Post-deployment verification
+        run: |
+          echo "Running post-deployment checks..."
+          kubectl get pods -n techcommerce-production
+          kubectl run verify --rm -i --restart=Never \
+            --image=curlimages/curl -n techcommerce-production -- \
+            curl -f http://prod-frontend-service:3000/health
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Deployment failed! Rolling back..."
+          kubectl rollout undo deployment/prod-frontend -n techcommerce-production
+          kubectl rollout undo deployment/prod-product-api -n techcommerce-production
+          kubectl rollout undo deployment/prod-order-api -n techcommerce-production
+
+      - name: Notify deployment
+        if: always()
+        run: |
+          echo "Production deployment completed!"
+          echo "Status: ${{ job.status }}"

@@ -1,0 +1,56 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: techcommerce-production
+
+namePrefix: prod-
+
+labels:
+  - pairs:
+      environment: production
+
+resources:
+  - ../base
+
+configMapGenerator:
+  - name: app-config
+    behavior: merge
+    literals:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=info
+      - MAX_CONNECTIONS=200
+
+patches:
+  # Frontend NodePort - Using 30200 for production
+  - patch: |-
+      - op: replace
+        path: /spec/ports/0/nodePort
+        value: 30200
+    target:
+      kind: Service
+      name: frontend-service
+
+  # Frontend replicas - 3 replicas for production
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+    target:
+      kind: Deployment
+      name: frontend
+
+  # HPA minimum replicas
+  - patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 3
+    target:
+      kind: HorizontalPodAutoscaler
+
+  # HPA maximum replicas
+  - patch: |-
+      - op: replace
+        path: /spec/maxReplicas
+        value: 15
+    target:
+      kind: HorizontalPodAutoscaler

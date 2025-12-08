@@ -242,7 +242,7 @@ jobs:
         run: echo "Staging deployment complete."
 
   # =====================================================================
-  # JOB 5 — DEPLOY TO PRODUCTION (error-proof)
+  # JOB 5 — DEPLOY TO PRODUCTION
   # =====================================================================
   deploy-production:
     name: Deploy to Production

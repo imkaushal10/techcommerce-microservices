@@ -21,3 +21,8 @@ venv/
 .vscode/
 .DS_Store
 *.swp
+
+# Kubernetes
+*.kube/config
+.kube/cache/
+k8s/app-secrets.yaml        

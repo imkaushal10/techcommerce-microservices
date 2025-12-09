@@ -3,14 +3,11 @@ kind: Service
 metadata:
   name: product-api-service
   namespace: techcommerce
-  labels:
-    app: product-api
 spec:
-  type: ClusterIP
   selector:
     app: product-api
   ports:
-    - port: 5000
-      targetPort: 5000
-      protocol: TCP
-      name: http
+    - protocol: TCP
+      port: 5001 # External port (what other services call)
+      targetPort: 5003 # Container port (where Flask runs)
+  type: ClusterIP

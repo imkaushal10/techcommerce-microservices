@@ -16,7 +16,7 @@ configMapGenerator:
     literals:
       - ENVIRONMENT=base
       - LOG_LEVEL=info
-      - ORDER_API_URL=http://order-api-service:5000
-      - PRODUCT_API_URL=http://product-api-service:5000
+      - ORDER_API_URL=http://order-api-service:5004
+      - PRODUCT_API_URL=http://product-api-service:5003
       - TIMEOUT=30
       - MAX_CONNECTIONS=100

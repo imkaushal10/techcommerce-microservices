@@ -17,27 +17,22 @@ spec:
         app: frontend
         tier: frontend
     spec:
-      # Security context for the pod
+      # Security context for the pod - REMOVED runAsNonRoot to allow nginx to work
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1001
-        fsGroup: 1001
-
+        runAsUser: 101 # nginx user
+        fsGroup: 101
       containers:
         - name: frontend
           image: techcommerce-frontend:latest
           imagePullPolicy: IfNotPresent
-
           ports:
             - containerPort: 3000
               name: http
               protocol: TCP
-
           # Environment variables from ConfigMap
           envFrom:
             - configMapRef:
                 name: app-config
-
           # Environment variables from Secret
           env:
             - name: API_KEY
@@ -45,7 +40,6 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: API_KEY
-
           # Resource limits
           resources:
             requests:
@@ -54,7 +48,6 @@ spec:
             limits:
               memory: "256Mi"
               cpu: "200m"
-
           # Liveness probe - checks if container is alive
           livenessProbe:
             httpGet:
@@ -64,7 +57,6 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 3
-
           # Readiness probe - checks if container is ready to serve traffic
           readinessProbe:
             httpGet:
@@ -74,11 +66,73 @@ spec:
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 3
-
           # Security context for container
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false
             capabilities:
               drop:
                 - ALL
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: techcommerce
+  labels:
+    app: frontend
+    tier: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+        tier: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: frontend:latest
+          imagePullPolicy: IfNotPresent
+          
+          ports:
+            - containerPort: 3000
+              name: http
+              protocol: TCP
+
+          envFrom:
+            - configMapRef:
+                name: app-config
+
+          env:
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: API_KEY
+
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+
+          # Simple TCP probe instead of HTTP (nginx root page)
+          livenessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          readinessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3

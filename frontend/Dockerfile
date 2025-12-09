@@ -1,54 +1,40 @@
-# Stage 1: Build and Test
-FROM node:18-alpine AS builder
+# Build stage
+FROM node:18-alpine AS build
 
-# Set working directory
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci --only=production
+RUN npm install
 
-# Copy application code
+# Copy source code
 COPY . .
 
-# Stage 2: Test (optional stage for CI)
-FROM node:18-alpine AS tester
+# Build the React app
+RUN npm run build
 
-WORKDIR /app
+# Production stage - serve with nginx
+FROM nginx:alpine
 
-COPY package*.json ./
-RUN npm ci
+# Create nginx user and set permissions
+RUN chown -R nginx:nginx /var/cache/nginx && \
+    chown -R nginx:nginx /var/log/nginx && \
+    chown -R nginx:nginx /etc/nginx/conf.d && \
+    touch /var/run/nginx.pid && \
+    chown -R nginx:nginx /var/run/nginx.pid
 
-COPY . .
+# Copy built files to nginx
+COPY --from=build /app/build /usr/share/nginx/html
 
-# Run tests
-RUN npm test
+# Copy nginx config
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Stage 3: Production
-FROM node:18-alpine AS production
-
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
-
-WORKDIR /app
-
-# Copy dependencies from builder
-COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
-COPY --chown=nodejs:nodejs package*.json ./
-COPY --chown=nodejs:nodejs src ./src
-
-# Switch to non-root user
-USER nodejs
-
-# Expose port
+# Expose port 3000 (to match your service)
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+# Run as nginx user
+USER nginx
 
-# Start application
-CMD ["npm", "start"]
+CMD ["nginx", "-g", "daemon off;"]

@@ -26,3 +26,8 @@ venv/
 *.kube/config
 .kube/cache/
 k8s/app-secrets.yaml        
+
+# Terraform
+terraform.tfvars
+*.tfvars
+.terraform/
